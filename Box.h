@@ -9,31 +9,27 @@
 #ifndef FINAL_BOX_H
 #define FINAL_BOX_H
 # define PI           3.14159265358979323846  /* pi */
-#define IA 16807
-#define IM 2147483647
-#define AM (1.0/IM)
-#define IQ 127773
-#define IR 2836
-#define MASK 123459876
 
 using namespace std;
-extern long l = -1; // simulation parameters
-extern const double rho = 1.0;         // density (number per unit volume)
+
 
 class Box {
 private:
+    double *Move(int, double);
+    void UnMove(int index, double *delta);
 
 public:
     static double **Lattice;     // positions,
+    static string position;
     static int N; // number of particles
     static double  *UAvg;
     static double *Var;
-    Box(int N, int steps, string flag);
-    double ran0(long *);
-    double MinImage(int i, int j);
+    Box(int, int, string);
+    ~Box();
+    double MinImage(int, int);
     void computeOrderParameter();
     void MMSteps(int, double, string filename, double step);
-    double computeEnergy(string flag);
+    double computeEnergy();
     void writeHeaders(ofstream& f, int index, string *fnames);
 
     static int MCSteps;
