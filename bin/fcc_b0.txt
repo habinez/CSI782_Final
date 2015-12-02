@@ -1,0 +1,1 @@
+MCStep s           	 Energy_U	Average_Energy_<U>	      Variance	 Order_Parameter	 Acceptance_Ratio	 Temperature
