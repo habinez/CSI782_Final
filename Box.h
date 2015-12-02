@@ -15,24 +15,25 @@ using namespace std;
 
 class Box {
 private:
-    double *Move(int, double);
-    void UnMove(int index, double *delta);
+    vector<double> Move(int, double);
+    void UnMove(int index, vector<double> delta);
 
 public:
-    static double **Lattice;     // positions,
-    static string position;
-    static int N; // number of particles
-    static double  *UAvg;
-    static double *Var;
+    double **Lattice;     // positions,
+    string position;
+    int N; // number of particles
+    double  *UAvg;
+    double *Var;
     Box(int, int, string);
     ~Box();
     double MinImage(int, int);
     void computeOrderParameter();
-    void MMSteps(int, double, string filename, double step);
+    void MMC(int, double, string filename, double step);
+    void MMC(int, double, string filename, double step, Box B);
     double computeEnergy();
     void writeHeaders(ofstream& f, int index, string *fnames);
 
-    static int MCSteps;
+    int MCSteps;
 };
 
 

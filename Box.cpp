@@ -8,18 +8,17 @@ double ran0(long *idum);
 long l = -1; // simulation parameters
 const double rho = 1.0;         // density (number per unit volume)
 
-Box::Box(int N, int steps, string flag) {
-    Box::MCSteps = steps;
-    Box::N = N;
-    Box::position = flag;
-    Box::Lattice = new double *[N];
+Box::Box(int numParticles, int steps, string flag) {
+    MCSteps = steps;
+    N = numParticles;
+    position = flag;
+    Lattice = new double *[N];
     for (int i = 0; i < N; i++) {
-        Box::Lattice[i] = new double[3];
+        Lattice[i] = new double[3];
     }
 
-    Box::UAvg = new double [Box::MCSteps];
-    Box::Var= new double [Box::MCSteps];
-
+    UAvg = new double [MCSteps];
+    Var= new double [MCSteps];
     // compute side of cube from number of particles and number density
 
     L = pow(N / rho, 1.0/3);
@@ -82,7 +81,7 @@ void Box::computeOrderParameter() {
     lambda /= -3 * (double) N;
 }
 
-void Box::MMSteps(int s, double T, string filename, double step) {
+void Box::MMC(int s, double T, string filename, double step) {
     ofstream file;
     file.precision(8);
     file.open(filename, ios::app);
@@ -95,16 +94,14 @@ void Box::MMSteps(int s, double T, string filename, double step) {
     computeOrderParameter();
 
     vector<int> indexes;
-    for (int i = 1; i < N; ++i) indexes.push_back(i);
-
+    for (int i = 0; i < N; ++i) indexes.push_back(i);
     while (indexes.size() != 0) {
         // choose a random point, here we are using idx as index
         random_shuffle(indexes.begin(), indexes.end());
         int idx = indexes[indexes.size() - 1];
         indexes.pop_back();
         double Uold = computeEnergy();
-
-        double *delta= Move(idx, delta_r);
+        vector<double> dr = Move(idx, delta_r);
         // Apply periodic boundary conditions
         for (int k = 0; k < 3; k++){
             if (Lattice[idx][k] < 0) Lattice[idx][k] += L;
@@ -118,7 +115,7 @@ void Box::MMSteps(int s, double T, string filename, double step) {
         double Unew = computeEnergy();
         double delta_U = Unew - Uold;
         if (delta_U > 0 && ran0(&ll) > exp(-(delta_U / T))) { //move is rejected
-            UnMove(idx, delta);
+            UnMove(idx, dr);
             Ui = Uold;
         }
         else {//move is accepted
@@ -126,7 +123,6 @@ void Box::MMSteps(int s, double T, string filename, double step) {
             AcceptanceRatio +=1;
         }
         U += (Ui)/((double)N);
-        delete delta;
     }
 
     //compute the average energy and standard deviation using the method on
@@ -135,7 +131,7 @@ void Box::MMSteps(int s, double T, string filename, double step) {
     Var[s] = s == 0 ? 0 : Var[s - 1] * s + (U - UAvg[s - 1]) * (Ui - UAvg[s]);
     Var[s] /= (s + 1);
     computeOrderParameter();
-    AcceptanceRatio = (AcceptanceRatio * 100)/(double)N;
+    AcceptanceRatio = AcceptanceRatio * 100 / N;
 
     file << s << "\t " << setw(12) << U << "\t            ";
     file << setw(12) << UAvg[s] << "\t  ";//running average
@@ -147,6 +143,67 @@ void Box::MMSteps(int s, double T, string filename, double step) {
 
 }
 
+void Box::MMC(int s, double T, string filename, double step, Box B) {
+    ofstream file;
+    file.precision(8);
+    file.open(filename, ios::app);
+
+    long ll = -1;
+    double Ui = 0;
+    double U = 0;
+    double delta_r = step; //0.03;
+    double AcceptanceRatio = 0;
+    computeOrderParameter();
+
+    vector<int> indexes;
+    for (int i = 0; i < N; ++i) indexes.push_back(i);
+    while (indexes.size() != 0) {
+        // choose a random point, here we are using idx as index
+        random_shuffle(indexes.begin(), indexes.end());
+        int idx = indexes[indexes.size() - 1];
+        indexes.pop_back();
+        double Uold = computeEnergy();
+        vector<double> dr = Move(idx, delta_r);
+        // Apply periodic boundary conditions
+        for (int k = 0; k < 3; k++){
+            if (Lattice[idx][k] < 0) Lattice[idx][k] += L;
+            if (Lattice[idx][k] >= L)Lattice[idx][k] -= L;
+            if (Lattice[idx][k] < 0) Lattice[idx][k] += L;
+            if (Lattice[idx][k] >= L)Lattice[idx][k] -= L;
+
+        }
+
+        //check energy difference due to move
+        double Unew = computeEnergy();
+        double delta_U = Unew - Uold;
+        if (delta_U > 0 && ran0(&ll) > exp(-(delta_U / T))) { //move is rejected
+            UnMove(idx, dr);
+            Ui = Uold;
+        }
+        else {//move is accepted
+            Ui = Unew;
+            AcceptanceRatio +=1;
+        }
+        U += (Ui)/((double)N);
+    }
+
+    //compute the average energy and standard deviation using the method on
+    UAvg[s] = s == 0 ? U : UAvg[s - 1] + ((U - UAvg[s - 1]) / s);
+
+    Var[s] = s == 0 ? 0 : Var[s - 1] * s + (U - UAvg[s - 1]) * (Ui - UAvg[s]);
+    Var[s] /= (s + 1);
+    computeOrderParameter();
+    AcceptanceRatio = (AcceptanceRatio * 100)/N;
+
+    file << s << "\t " << setw(12) << U << "\t            ";
+    file << setw(12) << UAvg[s] << "\t  ";//running average
+    file << setw(12) << Var[s] << "\t  ";//running variance
+    file << setw(12) << lambda << "\t ";
+    file << setw(12) << AcceptanceRatio << "\t";
+    file << setw(12) << T << "\n";
+    file.close();
+
+}
 double Box::computeEnergy() {
     double U = 0;
     for (int i = 0; i < N-1; i++)  {             // all distinct pairs
@@ -172,33 +229,32 @@ void Box::writeHeaders(ofstream &f, int index, string *fnames) {
     setw(12) << "Temperature\n";
 }
 
-double *Box::Move(int index, double dr) {
-    static double *delta;
+vector<double> Box::Move(int index, double dr) {
+    vector<double>delta (3);
     double t = ran0(&l);
     t = 2 * t - 1;
     t = acos(t);
     double ph = ran0(&l);
 
-    delta[0] = dr * cos(t) * sin(2 * ph * PI);
-    delta[1] = dr * sin(t) * sin(2 * ph * PI);
-    delta[2] = dr * cos(2 * ph * PI);
+    delta.push_back( dr * cos(t) * sin(2 * ph * PI));
+    delta.push_back(dr * sin(t) * sin(2 * ph * PI));
+    delta.push_back(dr * cos(2 * ph * PI));
     Lattice[index][0] += delta[0];
     Lattice[index][1] += delta[1];
     Lattice[index][2] += delta[2];
-
     return delta;
 }
 
-void Box::UnMove(int index, double *delta) {
+void Box::UnMove(int index, vector<double> delta) {
     Lattice[index][0] -= delta[0];
     Lattice[index][1] -= delta[1];
     Lattice[index][2] -= delta[2];
 }
 
 Box::~Box(){
-    delete [] Box::Lattice;
-    delete [] Box::UAvg;
-    delete [] Box::Var;
+    delete [] Lattice;
+    delete [] UAvg;
+    delete [] Var;
 }
 
 #define IA 16807
